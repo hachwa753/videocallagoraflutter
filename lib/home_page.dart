@@ -10,11 +10,10 @@ import 'package:videoapp/fetch_agora_token.dart';
 //     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
 // Replace with your Agora App ID
-const String appId = '6e0e73a5a42444499d40dde03af428ad';
+const String appId = '1446fbca246b482aa5bd9730b39ae739';
 
 // Token is optional for testing. Use a valid token in production!
-const String token =
-    '007eJxTYMjp/D5TQ/kbt0tvZvSd8+9Vjtkc1bv+X7h4c9apjGAm7/0KDGapBqnmxommiSZGJkBgaZliYpCSkmpgnJhmYmSRmLLOOTGjIZCRIYhvHQMjFIL4nAyJBQWl8YlFiUkMDAALtyFD';
+const String token = '';
 // Get token from your Firebase function
 
 // for token generation
@@ -45,27 +44,23 @@ class VideoCallScreen extends StatefulWidget {
 }
 
 class _VideoCallScreenState extends State<VideoCallScreen> {
-  late final RtcEngine _engine;
+  RtcEngine? _engine;
   int? _remoteUid;
   bool _localUserJoined = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _initAgora();
-  }
+  bool _engineInitialized = false;
 
   Future<void> _initAgora() async {
     await _requestPermissions(); // REQUEST PERMISSIONS
     _engine = createAgoraRtcEngine();
 
-    await _engine.initialize(RtcEngineContext(appId: appId));
+    await _engine!.initialize(RtcEngineContext(appId: appId));
+    _engineInitialized = true;
 
-    await _engine.enableVideo();
+    await _engine!.enableVideo();
     //  Set up local video stream
-    await _engine.startPreview();
+    await _engine!.startPreview();
 
-    _engine.registerEventHandler(
+    _engine!.registerEventHandler(
       RtcEngineEventHandler(
         onJoinChannelSuccess: (connection, elapsed) {
           setState(() {
@@ -89,8 +84,13 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     //   channelName,
     //   0,
     // ); // or your user id here
+  }
 
-    await _engine.joinChannel(
+  Future<void> startCall() async {
+    if (!_engineInitialized) {
+      await _initAgora();
+    }
+    await _engine!.joinChannel(
       token: token,
       channelId: channelName,
 
@@ -111,23 +111,21 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _engine.leaveChannel();
-    _engine.release();
-    super.dispose();
-  }
-
   Widget _renderLocalVideo() {
     if (_localUserJoined) {
       return AgoraVideoView(
         controller: VideoViewController(
-          rtcEngine: _engine,
+          rtcEngine: _engine!,
           canvas: const VideoCanvas(uid: 0),
         ),
       );
     } else {
-      return const Center(child: Text('Joining channel...'));
+      return const Center(
+        child: Text(
+          style: TextStyle(color: Colors.white),
+          'Joining channel...',
+        ),
+      );
     }
   }
 
@@ -135,13 +133,18 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
     if (_remoteUid != null) {
       return AgoraVideoView(
         controller: VideoViewController.remote(
-          rtcEngine: _engine,
+          rtcEngine: _engine!,
           canvas: VideoCanvas(uid: _remoteUid),
           connection: RtcConnection(channelId: channelName),
         ),
       );
     } else {
-      return const Center(child: Text('Waiting for remote user to join...'));
+      return const Center(
+        child: Text(
+          'Waiting for remote user to join...',
+          style: TextStyle(color: Colors.white),
+        ),
+      );
     }
   }
 
@@ -149,22 +152,127 @@ class _VideoCallScreenState extends State<VideoCallScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Agora Video Call')),
-      body: Stack(
-        children: [
-          Positioned.fill(child: _renderRemoteVideo()),
-          Positioned(
-            top: 20,
-            left: 20,
-            width: 120,
-            height: 160,
-            child: Container(
-              decoration: BoxDecoration(
-                border: Border.all(color: Colors.blueAccent, width: 2),
+
+      // body: Stack(
+      //   children: [
+      //     Positioned.fill(child: _renderRemoteVideo()),
+      //     Positioned(
+      //       top: 20,
+      //       left: 20,
+      //       width: 120,
+      //       height: 160,
+      //       child: Container(
+      //         decoration: BoxDecoration(
+      //           border: Border.all(color: Colors.blueAccent, width: 2),
+      //         ),
+      //         child: _renderLocalVideo(),
+      //       ),
+      //     ),
+      //   ],
+      // ),
+      body: SingleChildScrollView(
+        child: Padding(
+          padding: const EdgeInsets.all(25.0),
+          child: Column(
+            children: [
+              Container(
+                decoration: BoxDecoration(
+                  color: Colors.black,
+                  border: Border.all(color: Colors.red, width: 4),
+                ),
+
+                width: double.infinity,
+                height: 300,
+                child: _renderRemoteVideo(),
               ),
-              child: _renderLocalVideo(),
-            ),
+              SizedBox(height: 10),
+              Container(
+                height: 300,
+                child: Stack(
+                  children: [
+                    GestureDetector(
+                      onDoubleTap: () {
+                        _engine!.switchCamera();
+                      },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: Colors.black,
+                          border: Border.all(color: Colors.red, width: 4),
+                        ),
+
+                        width: double.infinity,
+                        height: 300,
+                        child: _renderLocalVideo(),
+                      ),
+                    ),
+                    Align(
+                      alignment: Alignment.bottomCenter,
+                      child: Padding(
+                        padding: const EdgeInsets.only(
+                          bottom: 16.0,
+                        ), // space from bottom
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Container(
+                              padding: EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.green,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.call, color: Colors.white),
+                            ),
+                            SizedBox(width: 10),
+                            Container(
+                              padding: EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: Colors.red,
+                                shape: BoxShape.circle,
+                              ),
+                              child: Icon(Icons.close, color: Colors.white),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  await _engine!
+                      .leaveChannel(); // Leaves the current Agora channel
+                  // Optional: If you're done with the engine completely
+                  await _engine!.release();
+                  _engine = null;
+                  _engineInitialized = false;
+                  setState(() {
+                    _localUserJoined = false;
+                    _remoteUid = null;
+                  });
+                },
+                child: Text("end call"),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  await startCall();
+                  setState(() {
+                    _localUserJoined = false;
+                    _remoteUid = null;
+                  });
+                },
+                child: Text("start call"),
+              ),
+              ElevatedButton(
+                onPressed: () async {
+                  await _engine!.switchCamera();
+                },
+                child: Text("switch camera"),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
